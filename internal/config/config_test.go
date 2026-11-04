@@ -17,7 +17,7 @@ func TestDefaultsAndOverlay(t *testing.T) {
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	_ = os.WriteFile(path, []byte("sensors:\n  eslogger:\n    enabled: false\nllm:\n  provider: ollama\n  model: m\n"), 0o600)
+	_ = os.WriteFile(path, []byte("sensors:\n  eslogger:\n    enabled: false\nllm:\n  provider: ollama\n  model: m\nclassifier:\n  url: http://localhost:8009\n"), 0o600)
 	c, err = Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -32,10 +32,12 @@ func TestDefaultsAndOverlay(t *testing.T) {
 
 func TestRejects(t *testing.T) {
 	cases := map[string]string{
-		"unknown key":      "sockett: /x\n",
-		"bad provider":     "llm:\n  provider: openai\n",
-		"bad timeout mode": "ask:\n  frozen_on_timeout: explode\n",
-		"long socket":      "socket: /" + strings.Repeat("a", 120) + "\n",
+		"unknown key":       "sockett: /x\n",
+		"bad provider":      "llm:\n  provider: openai\n",
+		"bad timeout mode":  "ask:\n  frozen_on_timeout: explode\n",
+		"long socket":       "socket: /" + strings.Repeat("a", 120) + "\n",
+		"remote classifier": "classifier:\n  url: https://models.example.com\n",
+		"remote ollama":     "llm:\n  ollama_url: http://10.0.0.5:11434\n",
 	}
 	dir := t.TempDir()
 	for name, raw := range cases {

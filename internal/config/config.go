@@ -3,6 +3,8 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"time"
 
@@ -129,6 +131,20 @@ func (c *Config) validate() error {
 	}
 	if c.Rules.RepeatAfter <= 0 || c.Ask.Timeout <= 0 || c.Hook.DaemonTimeout <= 0 {
 		return fmt.Errorf("rules.repeat_after, ask.timeout and hook.daemon_timeout must be positive")
+	}
+	// Process context goes to the classifier and to Ollama; both must stay on this machine.
+	for name, raw := range map[string]string{"classifier.url": c.Classifier.URL, "llm.ollama_url": c.LLM.OllamaURL} {
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" {
+			return fmt.Errorf("%s: %q is not a URL", name, raw)
+		}
+		host := u.Hostname()
+		if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			return fmt.Errorf("%s: %q is not on this machine; only localhost or a loopback address is allowed", name, raw)
+		}
 	}
 	// macOS unix socket paths hold at most 104 bytes.
 	if len(c.Socket) > 100 {
