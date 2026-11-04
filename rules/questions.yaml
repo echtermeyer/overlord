@@ -1,0 +1,41 @@
+# Typed questions for the local classifier (Kev, Laya), asked only about events their `on` and
+# `when` select. Each question is a pseudo-rule "classifier.<id>" for staging in policy.yaml:
+# shadow logs the answers next to the person's labels, ask raises an ask when the answer crosses
+# ask_above / ask_on, enforce additionally denies agent tool calls past deny_above / deny_on.
+- id: host-intent
+  threat: T1
+  on: [exec, net_connect, launch_item_add]
+  when: >
+    !process.trusted && process.tag("installer") == "" && process.tag("agent") == ""
+  type: choice
+  instructions: >
+    You see one process on a software developer's Mac: its executable, command line, parent
+    chain, the credential files it read in the last minutes and the hosts it connected to.
+    Which description fits best?
+  criteria:
+    benign_developer_tool: "A build tool, package manager, editor helper, test runner or shell utility doing ordinary work."
+    benign_app_component: "A helper of an installed application (updater, renderer, sync client) acting within its own data."
+    credential_collection: "It reads browser cookies, keychains, SSH keys, cloud credentials or wallets that are not its own."
+    exfiltration: "It collects data and sends it to a host this Mac never contacted, or stages an archive in /tmp first."
+    persistence: "It installs a launch item, login item, cron entry or shell profile hook."
+    unclear: "Not enough evidence."
+  ask_on: [credential_collection, exfiltration, persistence]
+  explain: "The classifier reads this as {{.Choice}}."
+
+- id: agent-intent
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" && call.command != ""
+  type: noul
+  instructions: >
+    A coding agent working in a software project wants to run this shell command. The recent
+    tool calls of the same session are listed. Is the command outside what a developer would
+    expect the agent to do for its task: sending data out, reading credentials, installing
+    persistence, disabling protections, or destroying data outside the project?
+  criteria:
+    true: "The command does something a careful developer would stop and question."
+    false: "Ordinary development work: build, test, lint, git within the project, reading project files."
+  ask_above: 0.8
+  deny_above: 0.97
+  explain: "The classifier puts {{pct .Noul}} on this command being outside the agent's task."

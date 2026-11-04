@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/echtermeyer/overlord/internal/classifier"
 	"github.com/echtermeyer/overlord/internal/events"
 	"github.com/echtermeyer/overlord/internal/graph"
 	"github.com/echtermeyer/overlord/internal/hooks"
@@ -45,13 +46,16 @@ func (d *Daemon) Handle(ev *events.Event) {
 		d.count(func(s *Stats) { s.Errors++ })
 		d.log("rule_error", map[string]string{"error": err.Error(), "kind": string(ev.Kind)})
 	}
-	if len(verdicts) == 0 {
-		d.noteBlockedDestination(ev, actor)
-		return
-	}
 	subject := actor
 	if ev.Kind == events.Exec && created != nil {
 		subject = created
+	}
+	if gated := d.gated(in); len(gated) > 0 {
+		go d.classify(context.Background(), gated, ev, subject, in.Ancestors, nil)
+	}
+	if len(verdicts) == 0 {
+		d.noteBlockedDestination(ev, actor)
+		return
 	}
 	for _, v := range verdicts {
 		d.count(func(s *Stats) { s.Verdicts++ })
@@ -250,6 +254,9 @@ func (d *Daemon) ToolCall(ctx context.Context, call hooks.Call) hooks.Decision {
 		d.count(func(s *Stats) { s.Verdicts++ })
 		d.log("verdict", map[string]any{"verdict": v, "call": info, "note": ""})
 	}
+	if gated := d.gated(rules.Input{Event: ev, Process: d.graph.ByPID(info.AgentPID), Session: session}); len(gated) > 0 {
+		verdicts = append(verdicts, d.classify(ctx, gated, ev, nil, nil, &info)...)
+	}
 	decision := hooks.FromVerdicts(verdicts)
 	if decision.Permission == hooks.Ask && d.explain.Enabled() {
 		c := d.llmCase(verdicts[0], nil, nil, &info)
@@ -338,4 +345,85 @@ func (d *Daemon) llmCase(v rules.Verdict, n *graph.Node, ancestors []*graph.Node
 func (d *Daemon) frozen(pid int) bool {
 	_, ok := d.actions.Frozen()[pid]
 	return ok
+}
+
+// gated returns the questions whose gate rule matches this event, with the stage each runs in.
+func (d *Daemon) gated(in rules.Input) map[string]rules.Verdict {
+	if d.clf == nil || !d.clf.Enabled() {
+		return nil
+	}
+	verdicts, err := d.gate.Evaluate(in)
+	if err != nil {
+		d.log("rule_error", map[string]string{"error": err.Error(), "kind": "classifier_gate"})
+		return nil
+	}
+	out := map[string]rules.Verdict{}
+	for _, v := range verdicts {
+		out[v.RuleID] = v
+	}
+	return out
+}
+
+// classify asks the classifier the gated questions and turns answers past their thresholds
+// into verdicts: ask (and alert) in stage ask or enforce; deny only for agent calls in enforce.
+// Every answer is logged, so shadow stage still produces data to compare with labels.
+func (d *Daemon) classify(ctx context.Context, gated map[string]rules.Verdict, ev *events.Event, n *graph.Node, ancestors []*graph.Node, call *events.ToolCallInfo) []rules.Verdict {
+	var questions []classifier.Question
+	for _, q := range d.questions {
+		if _, ok := gated[q.RuleID()]; ok {
+			questions = append(questions, q)
+		}
+	}
+	state := d.llmCase(rules.Verdict{}, n, ancestors, call)
+	answers, err := d.clf.Ask(ctx, state, questions)
+	if err != nil {
+		d.count(func(s *Stats) { s.Errors++ })
+		d.log("classifier_error", map[string]string{"error": err.Error()})
+		return nil
+	}
+	var out []rules.Verdict
+	for _, q := range questions {
+		a, ok := answers[q.ID]
+		if !ok {
+			continue
+		}
+		gate := gated[q.RuleID()]
+		outcome := q.Judge(a)
+		rec := map[string]any{"question": q.ID, "answer": a, "ask": outcome.Ask, "deny": outcome.Deny, "stage": gate.Stage, "kind": ev.Kind}
+		if n != nil {
+			rec["process"] = rules.ProcessMap(n, nil)
+		}
+		if call != nil {
+			rec["call"] = call
+		}
+		d.log("classifier", rec)
+		if !outcome.Ask && !outcome.Deny {
+			continue
+		}
+		v := gate
+		v.Explain = q.Render(a)
+		v.Requested = []rules.Action{rules.AskAction, rules.Alert}
+		if outcome.Deny && call != nil {
+			v.Requested = []rules.Action{rules.Deny, rules.Alert}
+			v.Confidence = rules.Likely
+		}
+		v.Actions = nil
+		if gate.Stage != rules.Shadow {
+			v.Actions = v.Requested
+		}
+		if gate.Stage == rules.Ask && outcome.Deny && call != nil {
+			v.Actions = []rules.Action{rules.AskAction, rules.Alert}
+		}
+		d.count(func(s *Stats) { s.Verdicts++ })
+		if n != nil {
+			d.log("verdict", verdictRecord(v, ev, n, ancestors, "classifier"))
+			if !d.Dry && len(v.Actions) > 0 && !d.allow.Allowed(v.RuleID, n) {
+				go d.dispatch(context.Background(), v, ev, n, ancestors)
+			}
+			continue
+		}
+		d.log("verdict", map[string]any{"verdict": v, "call": call, "note": "classifier"})
+		out = append(out, v)
+	}
+	return out
 }

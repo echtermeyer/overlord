@@ -77,6 +77,16 @@ messaging:
   - "~/Library/Application Support/Telegram Desktop/tdata/**"
   - "~/Library/Application Support/discord/Local Storage/**"
   - "~/Library/Application Support/Slack/Cookies"
+staging:
+  - "/tmp/**/*.zip"
+  - "/private/tmp/**/*.zip"
+  - "/tmp/**/*.tar*"
+  - "/private/tmp/**/*.tar*"
+  - "/private/var/folders/**/*.zip"
+  - "/tmp/out.zip"
+  - "~/.pass"
+  - "/tmp/.pass"
+  - "/private/tmp/.pass"
 overlord:
   - "/Library/Overlord/**"
   - "/var/db/overlord/**"

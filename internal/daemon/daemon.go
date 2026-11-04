@@ -15,6 +15,7 @@ import (
 
 	overlord "github.com/echtermeyer/overlord"
 	"github.com/echtermeyer/overlord/internal/actions"
+	"github.com/echtermeyer/overlord/internal/classifier"
 	"github.com/echtermeyer/overlord/internal/config"
 	"github.com/echtermeyer/overlord/internal/eslogger"
 	"github.com/echtermeyer/overlord/internal/events"
@@ -31,6 +32,9 @@ type Daemon struct {
 	cfg       *config.Config
 	graph     *graph.Graph
 	engine    *rules.Engine
+	gate      *rules.Engine
+	questions []classifier.Question
+	clf       *classifier.Client
 	policy    rules.Policy
 	actions   *actions.Store
 	logger    *logs.Logger
@@ -120,8 +124,30 @@ func New(cfg *config.Config) (*Daemon, error) {
 	if d.allow, err = OpenAllowStore(filepath.Join(cfg.DataDir, "allow.ndjson"), d.policy.Allowlists); err != nil {
 		return nil, err
 	}
+	if raw, err := os.ReadFile(filepath.Join(cfg.Rules.Dir, "sigma.yaml")); err == nil {
+		list, err := rules.ParseRules(raw)
+		if err != nil {
+			return nil, fmt.Errorf("sigma.yaml: %w", err)
+		}
+		all = append(all, list...)
+		d.hashes["rules/sigma.yaml"] = hashOf(raw)
+	}
 	if d.engine, err = rules.New(ruleContext{d}, all, d.policy, cfg.Rules.RepeatAfter); err != nil {
 		return nil, err
+	}
+	questionsRaw, err := d.read(filepath.Join(cfg.Rules.Dir, "questions.yaml"), "rules/questions.yaml")
+	if err != nil {
+		return nil, err
+	}
+	if d.questions, err = classifier.ParseQuestions(questionsRaw); err != nil {
+		return nil, err
+	}
+	if d.gate, err = rules.New(ruleContext{d}, classifier.Gate(d.questions), d.policy, cfg.Rules.RepeatAfter); err != nil {
+		return nil, err
+	}
+	if cfg.Classifier.URL != "" {
+		key, _ := readSecret(cfg.Classifier.KeyFile)
+		d.clf = &classifier.Client{URL: cfg.Classifier.URL, Model: cfg.Classifier.Model, Key: key, Timeout: cfg.Classifier.Timeout}
 	}
 	if d.actions, err = actions.New(cfg.DataDir, nil); err != nil {
 		return nil, err
@@ -201,6 +227,11 @@ func executable() string {
 		return ""
 	}
 	return p
+}
+
+func hashOf(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8])
 }
 
 func fileHash(path string) string {

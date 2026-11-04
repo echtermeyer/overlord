@@ -127,10 +127,13 @@ func (g *Graph) Apply(ev *events.Event) (actor *Node, created *Node) {
 	case events.Exit:
 		actor.Exited = ev.At
 	case events.FileOpen, events.FileCreate, events.FileWrite, events.FileRename, events.FileUnlink:
-		if !ev.Write || ev.Kind == events.FileOpen {
-			if cat := g.opts.Sensitive.Match(ev.Path); cat != "" {
-				actor.Reads = appendBounded(actor.Reads, Read{Path: ev.Path, Category: cat, At: ev.At}, g.opts.MaxPerNode)
+		// Reads of sensitive files count; writes count only for staging paths (archives in /tmp).
+		for _, path := range []string{ev.Path, ev.DestPath} {
+			cat := g.opts.Sensitive.Match(path)
+			if cat == "" || (ev.Write && cat != "staging") || (!ev.Write && cat == "staging") {
+				continue
 			}
+			actor.Reads = appendBounded(actor.Reads, Read{Path: path, Category: cat, At: ev.At}, g.opts.MaxPerNode)
 		}
 		if ev.Write && isPersistencePath(ev.Path) {
 			actor.Persistence = append(actor.Persistence, PersistenceWrite{Path: ev.Path, At: ev.At})

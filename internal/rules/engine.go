@@ -367,35 +367,45 @@ func eventMap(ev *events.Event) map[string]any {
 // ProcessMap is the shape rules see as `process` and `target`.
 func ProcessMap(n *graph.Node, ancestors []*graph.Node) map[string]any {
 	if n == nil {
-		return map[string]any{"key": "", "name": "", "path": "", "tags": map[string]string{}, "args": []string{}, "ancestors": []map[string]any{}}
+		return map[string]any{"key": "", "name": "", "path": "", "cmdline": "", "trusted": false, "untrustedChain": false, "firstSeen": false, "tags": map[string]string{}, "args": []string{}, "ancestors": []map[string]any{}}
 	}
 	chain := make([]map[string]any, 0, len(ancestors))
+	// untrustedChain: the process or an ancestor below the terminal or editor is not trusted,
+	// so "something unknown started this", however many shells sit in between.
+	untrustedChain := !n.Trusted && n.Tags["terminal"] == "" && n.Tags["editor"] == ""
 	for _, a := range ancestors {
-		chain = append(chain, map[string]any{"name": a.Name(), "path": a.Path, "pid": a.PID, "tags": a.Tags})
+		chain = append(chain, map[string]any{"name": a.Name(), "path": a.Path, "pid": a.PID, "tags": a.Tags, "trusted": a.Trusted})
+		if a.Tags["terminal"] != "" || a.Tags["editor"] != "" {
+			break
+		}
+		if !a.Trusted {
+			untrustedChain = true
+		}
 	}
 	args := n.Args
 	if args == nil {
 		args = []string{}
 	}
 	return map[string]any{
-		"key":         n.Key,
-		"pid":         n.PID,
-		"name":        n.Name(),
-		"path":        n.Path,
-		"args":        args,
-		"cmdline":     strings.Join(args, " "),
-		"cwd":         n.CWD,
-		"uid":         n.UID,
-		"signingId":   n.SigningID,
-		"teamId":      n.TeamID,
-		"cdhash":      n.CDHash,
-		"platform":    n.Platform,
-		"trusted":     n.Trusted,
-		"firstSeen":   n.FirstSeen,
-		"tty":         n.TTY,
-		"tags":        n.Tags,
-		"ancestors":   chain,
-		"persistence": len(n.Persistence),
+		"key":            n.Key,
+		"pid":            n.PID,
+		"name":           n.Name(),
+		"path":           n.Path,
+		"args":           args,
+		"cmdline":        strings.Join(args, " "),
+		"cwd":            n.CWD,
+		"uid":            n.UID,
+		"signingId":      n.SigningID,
+		"teamId":         n.TeamID,
+		"cdhash":         n.CDHash,
+		"platform":       n.Platform,
+		"trusted":        n.Trusted,
+		"firstSeen":      n.FirstSeen,
+		"untrustedChain": untrustedChain,
+		"tty":            n.TTY,
+		"tags":           n.Tags,
+		"ancestors":      chain,
+		"persistence":    len(n.Persistence),
 	}
 }
 

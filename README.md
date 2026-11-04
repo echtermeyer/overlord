@@ -37,6 +37,11 @@ Overlord joins both in one process graph and reuses the host tools instead of re
 writes its own kernel sensor: Apple's `eslogger` provides the events, Santa provides binary blocking,
 the agents' hook interfaces provide synchronous denies, `pf` blocks destinations.
 
+Decisions come in three tiers: deterministic rules (CEL in YAML, Sigma convertible), an optional
+local decision model (Kev or Laya over the `/v1/systemone` contract) that answers typed questions
+about what the rules let through, and an optional local LLM that explains asks. Neither model can
+allow anything.
+
 ## Principles
 
 - **Local.** Decisions and data stay on the Mac. Only tamper-evident logs and heartbeats leave it.

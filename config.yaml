@@ -66,6 +66,11 @@ logs:
     token_file: /Library/Overlord/sink.token
     batch: 500
     interval: 10s
+classifier:
+  url: ""                   # e.g. http://127.0.0.1:8009 (Kev: python -m kev.serve --run jaredpalmer/kev-0.8b --port 8009)
+  model: ""
+  key_file: ""
+  timeout: 1500ms
 llm:
   provider: none            # none | ollama | anthropic
   model: ""

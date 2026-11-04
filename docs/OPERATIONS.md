@@ -24,6 +24,12 @@ overlord simulate stealer          # should log host.stealer-pattern within a se
 sudo tail -f /var/db/overlord/log/overlord.ndjson | grep '"verdict"'
 ```
 
+Central rollout instead of per-user hooks: `packaging/claude-managed-settings.json` goes to
+`/Library/Application Support/ClaudeCode/managed-settings.json` (its `allowManagedHooksOnly`
+blocks every user and project hook, so developers cannot remove it), and
+`packaging/cursor-hooks.json` to `/Library/Application Support/Cursor/hooks.json`. Both are
+MDM-friendly files.
+
 Codex and Gemini CLI have no "ask": a rule in stage `ask` denies there, with the reason. Codex
 needs the hook trusted once with `/hooks` inside Codex. Cursor's `beforeReadFile` knows only
 allow and deny, so an ask on a file read denies.
@@ -83,6 +89,40 @@ go build ./cmd/overlord-sink
 Put TLS in front (Caddy, a load balancer) and the directory on storage with a retention lock.
 On each Mac: `logs.ship.url: https://sink.example/ingest` in `config.yaml`, the token in
 `/Library/Overlord/sink.token`. The sink alerts when a host's heartbeat is older than five minutes.
+
+## Classifier
+
+Optional second tier. Run a `/v1/systemone` server on the Mac and point Overlord at it:
+
+```sh
+git clone https://github.com/jaredpalmer/kev && cd kev
+uv sync --extra serve
+uv run --extra serve python -m kev.serve --run jaredpalmer/kev-0.8b --port 8009   # Apple Silicon, any size
+```
+
+`config.yaml`:
+
+```yaml
+classifier:
+  url: http://127.0.0.1:8009
+  model: kev-latest
+```
+
+Questions live in `rules/questions.yaml`; each is a pseudo-rule `classifier.<id>` staged in
+`policy.yaml` like any rule. In shadow, `kind: classifier` log records hold every answer; compare
+them with `labels/overlord.ndjson` before moving a question to ask. Laya works through
+laya.cpp's Jev-compatible server on the same URL.
+
+## Sigma rules
+
+```sh
+git clone --depth 1 https://github.com/SigmaHQ/sigma
+./overlord sigma sigma/rules/macos/process_creation/*.yml sigma/rules-emerging-threats/*/Malware/*MacOS*/*.yml > sigma.yaml
+sudo install -m 644 sigma.yaml /Library/Overlord/rules/sigma.yaml
+```
+
+Unsupported rules are skipped with a reason. Converted rules are `alert` only and start in
+shadow; stage them like any other rule.
 
 ## Santa
 

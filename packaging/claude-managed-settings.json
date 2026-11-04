@@ -1,0 +1,11 @@
+{
+  "allowManagedHooksOnly": true,
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "/Library/Overlord/bin/overlord hook claude", "timeout": 10}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "/Library/Overlord/bin/overlord hook claude", "timeout": 10}]}
+    ]
+  }
+}

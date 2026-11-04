@@ -22,7 +22,10 @@ import (
 	"github.com/echtermeyer/overlord/internal/ipc"
 	"github.com/echtermeyer/overlord/internal/logs"
 	"github.com/echtermeyer/overlord/internal/notify"
+	"github.com/echtermeyer/overlord/internal/sigma"
 	"github.com/echtermeyer/overlord/internal/simulate"
+
+	"gopkg.in/yaml.v3"
 )
 
 const usage = `overlord <command> [flags]
@@ -40,6 +43,7 @@ const usage = `overlord <command> [flags]
   undo <manifest-id>     put a quarantined file or launch item back, or lift a block
   resume <pid> | kill <pid>
   verify-log <file>      check a log file's hash chain
+  sigma <rule.yml...>    convert Sigma macOS rules to Overlord rules on stdout (save as rules/sigma.yaml)
   version
 
 Flags: -config <path> (default /Library/Overlord/config.yaml)
@@ -159,6 +163,26 @@ func run(cfg *config.Config, args []string) error {
 			return err
 		}
 		return client.Call(cmd, map[string]int{"pid": pid}, nil)
+	case "sigma":
+		if len(rest) == 0 {
+			return fmt.Errorf("usage: overlord sigma <rule.yml...> > sigma.yaml")
+		}
+		var out []any
+		for _, path := range rest {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			r, err := sigma.Convert(raw)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "skipped:", err)
+				continue
+			}
+			out = append(out, r)
+		}
+		enc := yaml.NewEncoder(os.Stdout)
+		enc.SetIndent(2)
+		return enc.Encode(out)
 	case "verify-log":
 		if len(rest) != 1 {
 			return fmt.Errorf("usage: overlord verify-log <file>")

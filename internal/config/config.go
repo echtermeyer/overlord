@@ -66,6 +66,12 @@ type Config struct {
 			Interval  time.Duration `yaml:"interval"`
 		} `yaml:"ship"`
 	} `yaml:"logs"`
+	Classifier struct {
+		URL     string        `yaml:"url"`
+		Model   string        `yaml:"model"`
+		KeyFile string        `yaml:"key_file"`
+		Timeout time.Duration `yaml:"timeout"`
+	} `yaml:"classifier"`
 	LLM struct {
 		Provider         string        `yaml:"provider"`
 		Model            string        `yaml:"model"`

@@ -80,3 +80,14 @@ A rule fires at most once per process per `rules.repeat_after`; an escalation fi
 go test ./internal/rules/                  # table of calls and expectations
 ./overlord replay recorded-day.ndjson      # counts per rule on real activity
 ```
+
+## Classifier questions
+
+`rules/questions.yaml` holds typed questions for the optional local classifier. A question has
+the same `on` and `when` gate as a rule, a `type` (`noul` for yes/no, `choice`, `score`),
+`instructions`, `criteria` (descriptions of yes/no, of each option, or of each score level),
+and thresholds: `ask_above` or `ask_on`, and optionally `deny_above` or `deny_on` for agent
+tool calls. Its pseudo-rule id is `classifier.<id>`, staged in `policy.yaml`. The model sees the
+process, its chain, recent credential reads and connections, and for agent calls the command
+and the session's recent calls. `explain` is a template over the answer: `{{.Choice}}`,
+`{{pct .Noul}}`, `{{.Score}}`.

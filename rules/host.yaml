@@ -28,10 +28,52 @@
   threat: T1
   on: exec
   when: >
-    target.name == "osascript" && target.cmdline.contains("hidden answer") && !process.trusted
+    target.name == "osascript" && target.cmdline.contains("hidden answer") && process.untrustedChain
   confidence: likely
   actions: [freeze, ask]
   explain: "{{.process.name}} opens a dialog that asks for a password. macOS itself never does this through osascript."
+
+- id: host.finder-scripting
+  threat: T1
+  on: exec
+  when: >
+    target.name == "osascript" && target.cmdline.contains("Finder") && process.untrustedChain
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "{{.process.name}} drives Finder with AppleScript, the way stealers collect files."
+
+- id: host.base64-bootstrap
+  threat: T1
+  on: exec
+  when: >
+    target.cmdline.matches("base64\\s+(-d|-D|--decode)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b") ||
+    target.cmdline.matches("echo\\s+[\"']?[A-Za-z0-9+/=]{40,}[\"']?\\s*\\|\\s*base64")
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "A shell decodes a hidden script and runs it: {{.target.cmdline}}"
+
+- id: host.staging-then-egress
+  threat: T1
+  on: net_connect
+  when: >
+    !process.trusted && !dest.seenBefore &&
+    !dest.address.matches("^(127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|::1$|fe80:|fd)") &&
+    "staging" in process.readCategories("10m") &&
+    process.readCategories("10m").filter(c, !(c in ["env", "agent", "overlord", "staging"])).size() >= 1
+  confidence: likely
+  actions: [freeze, ask, block_new_destinations]
+  escalate_when: process.outbound("10m").size() >= 2
+  escalate_actions: [kill, quarantine, alert]
+  explain: "{{.process.name}} read credentials, wrote an archive in a temporary folder and now talks to {{.dest.address}}."
+
+- id: host.hidden-pass-file
+  threat: T1
+  on: [file_create, file_rename]
+  when: >
+    (event.path.matchesAny(["~/.pass", "/tmp/.pass", "/private/tmp/.pass"]) || event.destPath.matchesAny(["~/.pass", "/tmp/.pass", "/private/tmp/.pass"])) && !process.trusted
+  confidence: likely
+  actions: [alert]
+  explain: "{{.process.name}} writes a hidden .pass file, where stealers keep the captured password."
 
 - id: host.pipe-to-shell
   threat: T1

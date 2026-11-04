@@ -179,10 +179,20 @@ the rule file, and the engine caps actions by stage. New rules always ship in `s
    It can never allow and never act on host processes. Default model is local through Ollama;
    the Claude API is an opt-in that sends only that subgraph. The hook waits at most a configured
    budget for it; after that the rule's own verdict stands.
-3. **Classifier**: not in version 1. There are no labels yet, and the earlier plan's named
-   classifiers are not something we could verify. Every Allow or Block click is stored from day one
-   as a label with its subgraph snapshot. A classifier is built only if, after the shadow phase,
-   there is a class of events the rules provably cannot separate.
+3. **Classifier**, optional: a local "System One" decision model behind the `/v1/systemone`
+   contract ([Kev](https://github.com/jaredpalmer/kev), Qwen with a LoRA and pointer head,
+   Apache-2.0, 0.8B runs on any Apple Silicon Mac; [Laya](https://huggingface.co/convaiinnovations/laya),
+   ModernBERT, Apache-2.0, CPU, through laya.cpp's compatible server). It answers typed
+   questions from `rules/questions.yaml` in one forward pass: yes/no with a probability, a
+   choice with probabilities, or a score. Each question is gated like a rule (`on`, `when`), so
+   the model sees only the events the rules let through that still look worth a look: untrusted
+   processes that execute, connect or persist, and agents' shell commands. Past its threshold a
+   question raises an ask; in stage enforce it may deny an agent call. It can never allow.
+   Every answer is logged next to the person's labels, so shadow stage measures the model's
+   zero-shot accuracy on this team's machines before it is allowed to ask, and the labels
+   become its fine-tuning set. Reference numbers for these models are the vendors' own; the
+   independent benchmark the earlier plan cited puts open models well below the hosted one,
+   which is why the rules stay the first line and the classifier starts in shadow.
 
 ### 3.5 Actions and their undo
 
@@ -263,10 +273,11 @@ built in GitHub Actions with provenance, and releases are signed and notarized.
 ## 4. What we deliberately do not build
 
 - An Endpoint Security client of our own.
-- A trained classifier before there are labels.
+- A classifier that decides alone: it asks, it does not allow, and it runs in shadow until the
+  labels say it is right.
 - Default-deny networking for the whole machine. Default-deny applies only to processes tagged as
   agent-driven, and only once the Network Extension exists.
-- A native Sigma engine; Sigma rules are imported, not executed.
+- A native Sigma engine; `overlord sigma` converts macOS process and file rules to CEL.
 - Remote approval. Allowing happens at the keyboard.
 - Token revocation.
 

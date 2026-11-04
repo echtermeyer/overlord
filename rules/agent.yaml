@@ -8,10 +8,11 @@
     call.tool == "Bash" &&
     (call.command.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b") ||
      call.command.matches("(ba|z)?sh\\s+(-c\\s+)?[\"']?\\s*\\$\\((curl|wget)\\b") ||
-     call.command.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(python3?|perl|ruby|node)\\b"))
+     call.command.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(python3?|perl|ruby|node)\\b") ||
+     call.command.matches("base64\\s+(-d|-D|--decode)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b"))
   confidence: certain
   actions: [deny, alert]
-  explain: "The agent wants to download a script and run it without anyone reading it."
+  explain: "The agent wants to run a script nobody has read: downloaded or decoded straight into a shell."
 
 - id: agent.disable-security
   threat: T2

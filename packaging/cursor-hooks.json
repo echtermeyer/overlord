@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [{"command": "/Library/Overlord/bin/overlord hook cursor"}],
+    "beforeReadFile": [{"command": "/Library/Overlord/bin/overlord hook cursor"}],
+    "beforeMCPExecution": [{"command": "/Library/Overlord/bin/overlord hook cursor"}]
+  }
+}
