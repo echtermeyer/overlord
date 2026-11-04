@@ -7,7 +7,7 @@ brew install go
 git clone https://github.com/echtermeyer/overlord && cd overlord
 make test
 make install                       # sudo: binary, rules, policy, pf anchor, LaunchDaemon, LaunchAgent
-overlord install-hooks claude      # as yourself; also: cursor, gemini
+overlord install-hooks claude      # as yourself; also: codex, cursor, gemini
 ```
 
 Then give `eslogger` Full Disk Access, or the daemon sees no host events:
@@ -23,6 +23,10 @@ sudo overlord status               # eslogger.alive must be true, lines must gro
 overlord simulate stealer          # should log host.stealer-pattern within a second
 sudo tail -f /var/db/overlord/log/overlord.ndjson | grep '"verdict"'
 ```
+
+Codex and Gemini CLI have no "ask": a rule in stage `ask` denies there, with the reason. Codex
+needs the hook trusted once with `/hooks` inside Codex. Cursor's `beforeReadFile` knows only
+allow and deny, so an ask on a file read denies.
 
 ## Files
 

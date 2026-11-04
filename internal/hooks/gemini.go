@@ -50,12 +50,9 @@ func (gemini) Render(c Call, d Decision) ([]byte, int) {
 	if c.Phase != "pre" || d.Permission == Allow {
 		return nil, 0
 	}
-	decision := "deny"
-	if d.Permission == Ask {
-		decision = "ask"
-	}
+	// Gemini CLI documents only {"decision": "deny"}; an ask becomes a deny with the reason.
 	return mustJSON(map[string]any{
-		"decision": decision,
+		"decision": "deny",
 		"reason":   "Overlord (" + joinRules(d.Rules) + "): " + d.Reason,
 	}), 0
 }

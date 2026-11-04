@@ -124,5 +124,9 @@ func (c *Config) validate() error {
 	if c.Rules.RepeatAfter <= 0 || c.Ask.Timeout <= 0 || c.Hook.DaemonTimeout <= 0 {
 		return fmt.Errorf("rules.repeat_after, ask.timeout and hook.daemon_timeout must be positive")
 	}
+	// macOS unix socket paths hold at most 104 bytes.
+	if len(c.Socket) > 100 {
+		return fmt.Errorf("socket: path %q is longer than 100 bytes", c.Socket)
+	}
 	return nil
 }

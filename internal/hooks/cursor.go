@@ -56,7 +56,12 @@ func (cursor) Render(c Call, d Decision) ([]byte, int) {
 	if c.Phase != "pre" {
 		return nil, 0
 	}
-	out := map[string]any{"permission": string(d.Permission)}
+	permission := d.Permission
+	// beforeReadFile knows only allow and deny; an ask there blocks, the safe side.
+	if permission == Ask && c.Info.Tool == "Read" {
+		permission = Deny
+	}
+	out := map[string]any{"permission": string(permission)}
 	if d.Permission != Allow {
 		out["user_message"] = "Overlord (" + joinRules(d.Rules) + "): " + d.Reason
 		out["agent_message"] = "Overlord blocked or held this call: " + d.Reason

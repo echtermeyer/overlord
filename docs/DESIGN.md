@@ -20,8 +20,8 @@ Out of scope: wrong code, wrong logic, an attacker who already has root, kernel 
    streams the same notify events as JSON and needs only root plus Full Disk Access, which an MDM
    profile grants (`SystemPolicyAllFiles`). It carries no auth events, so it cannot block.
 2. **Synchronous blocking exists at three points without special entitlements:** the agents' hook
-   interfaces (Claude Code `PreToolUse` with `permissionDecision: deny`, Cursor's `hooks.json`,
-   Gemini CLI's `BeforeTool`; Codex and Copilot CLI once their hook interfaces are verified), Santa's blocklist (applies even in monitor mode; Overlord serves as its sync server),
+   interfaces (Claude Code and Codex CLI `PreToolUse` with `permissionDecision: deny`, Cursor's
+   `hooks.json`, Gemini CLI's `BeforeTool`; Copilot CLI once its hook interface is verified), Santa's blocklist (applies even in monitor mode; Overlord serves as its sync server),
    and the `pf` firewall.
 3. **Per-process network attribution needs a Network Extension content filter.** That entitlement is
    routine for a paid developer account but needs Developer ID signing and notarization. It is a later

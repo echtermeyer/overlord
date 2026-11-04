@@ -37,7 +37,7 @@ func TestInstallClaudeIdempotent(t *testing.T) {
 func TestInstallCursorAndGemini(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	for _, agent := range []string{"cursor", "gemini"} {
+	for _, agent := range []string{"cursor", "gemini", "codex"} {
 		path, err := Install(agent, "/x/overlord")
 		if err != nil {
 			t.Fatal(err)
@@ -47,7 +47,7 @@ func TestInstallCursorAndGemini(t *testing.T) {
 			t.Errorf("%s: %s", agent, raw)
 		}
 	}
-	if _, err := Install("codex", "/x"); err == nil {
+	if _, err := Install("copilot", "/x"); err == nil {
 		t.Error("unknown agent accepted")
 	}
 }

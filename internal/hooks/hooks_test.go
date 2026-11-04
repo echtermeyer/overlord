@@ -64,6 +64,11 @@ func TestCursor(t *testing.T) {
 	if string(out) != `{"permission":"allow"}` {
 		t.Errorf("%s", out)
 	}
+	read, _ := cursor{}.Parse([]byte(`{"conversation_id":"c1","hook_event_name":"beforeReadFile","file_path":"/Users/x/.ssh/id_rsa","workspace_roots":["/w"]}`))
+	out, _ = cursor{}.Render(read, Decision{Permission: Ask, Reason: "secret"})
+	if !strings.Contains(string(out), `"permission":"deny"`) {
+		t.Errorf("read ask should deny: %s", out)
+	}
 }
 
 func TestGemini(t *testing.T) {
@@ -74,6 +79,17 @@ func TestGemini(t *testing.T) {
 	out, _ := gemini{}.Render(c, Decision{Permission: Deny, Reason: "no"})
 	if !strings.Contains(string(out), `"decision":"deny"`) {
 		t.Errorf("%s", out)
+	}
+}
+
+func TestCodex(t *testing.T) {
+	c, err := codex{}.Parse([]byte(`{"session_id":"x","cwd":"/w","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sudo ls"}}`))
+	if err != nil || c.Info.Tool != "Bash" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	out, _ := codex{}.Render(c, Decision{Permission: Ask, Reason: "root"})
+	if !strings.Contains(string(out), `"permissionDecision":"deny"`) {
+		t.Errorf("codex ask should deny: %s", out)
 	}
 }
 

@@ -1,0 +1,24 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - name: build
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/echtermeyer/overlord.Version=${GITHUB_REF_NAME}" -o overlord ./cmd/overlord
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o overlord-sink ./cmd/overlord-sink
+          tar czf overlord-${GITHUB_REF_NAME}-darwin-arm64.tar.gz overlord overlord-sink rules policy.yaml packaging
+          shasum -a 256 overlord-${GITHUB_REF_NAME}-darwin-arm64.tar.gz > overlord-${GITHUB_REF_NAME}-darwin-arm64.tar.gz.sha256
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes overlord-*.tar.gz overlord-*.sha256
+        env:
+          GH_TOKEN: ${{ github.token }}

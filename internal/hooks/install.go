@@ -25,6 +25,14 @@ func Install(agent, binary string) (string, error) {
 				hooks[event] = appendUnique(hooks[event], entry, command)
 			}
 		})
+	case "codex":
+		path := filepath.Join(home, ".codex", "hooks.json")
+		return path, patch(path, func(root map[string]any) {
+			for _, event := range []string{"PreToolUse", "PostToolUse"} {
+				entry := map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": command, "timeout": 10, "statusMessage": "Overlord"}}}
+				root[event] = appendUnique(root[event], entry, command)
+			}
+		})
 	case "cursor":
 		path := filepath.Join(home, ".cursor", "hooks.json")
 		return path, patch(path, func(root map[string]any) {

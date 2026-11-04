@@ -188,8 +188,8 @@ func printJSON(v any) error {
 }
 
 func runDaemon(cfg *config.Config) error {
-	if os.Geteuid() != 0 {
-		return fmt.Errorf("the daemon must run as root (eslogger needs it)")
+	if os.Geteuid() != 0 && cfg.Sensors.ESLogger.Enabled {
+		return fmt.Errorf("the daemon must run as root (eslogger needs it); for a hooks-only trial set sensors.eslogger.enabled: false")
 	}
 	d, err := daemon.New(cfg)
 	if err != nil {

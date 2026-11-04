@@ -12,7 +12,7 @@ for the why, [docs/OPERATIONS.md](docs/OPERATIONS.md) to run it.
 ```sh
 brew install go && git clone https://github.com/echtermeyer/overlord && cd overlord
 make test && make install            # root daemon, pf anchor, notify agent
-overlord install-hooks claude        # per user; also cursor, gemini
+overlord install-hooks claude        # per user; also codex, cursor, gemini
 overlord simulate stealer            # watch host.stealer-pattern fire in the log
 ```
 

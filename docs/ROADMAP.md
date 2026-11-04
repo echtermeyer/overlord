@@ -2,6 +2,12 @@
 
 Phases end at a gate, not a date. A phase ships when its gate holds on our own machines.
 
+Status 2026-11-04: phase 0 and phase 1 are implemented (daemon, hooks for Claude Code, Codex,
+Cursor and Gemini CLI, replay, simulation, log sink). Their gates are open: no Mac runs the
+daemon yet and no benign corpus is recorded. Phase 2's mechanics (freeze, ask, quarantine, undo,
+pf blocks, Santa sync, LLM explainer) exist too, but every host rule stays in shadow until the
+phase 1 gate holds.
+
 ## Phase 0: observe
 
 - Go module, `overlord daemon` as a root LaunchDaemon, `eslogger` ingestion, process graph in memory

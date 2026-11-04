@@ -61,6 +61,7 @@ type Adapter interface {
 
 var adapters = map[string]Adapter{
 	"claude": claude{},
+	"codex":  codex{},
 	"cursor": cursor{},
 	"gemini": gemini{},
 }
