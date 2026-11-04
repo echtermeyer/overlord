@@ -5,16 +5,41 @@ process, file access and connection to where it came from (which app, which codi
 which project), and stops the few things that are clearly dangerous: infostealers, data leaving the
 machine, persistence, and coding agents that break out of their task.
 
-Status: phase 0 and 1 of [docs/ROADMAP.md](docs/ROADMAP.md) are implemented and tested; the host
-rules run in shadow mode until they pass the false-positive gate. Read [docs/DESIGN.md](docs/DESIGN.md)
-for the why, [docs/OPERATIONS.md](docs/OPERATIONS.md) to run it.
+Status: working, tested, not yet proven on a fleet. Read [docs/DESIGN.md](docs/DESIGN.md) for the
+why and [docs/OPERATIONS.md](docs/OPERATIONS.md) for running it.
+
+## Install
 
 ```sh
-brew install go && git clone https://github.com/echtermeyer/overlord && cd overlord
-make test && make install            # root daemon, pf anchor, notify agent
-overlord install-hooks claude        # per user; also codex, cursor, gemini
-overlord simulate stealer            # watch host.stealer-pattern fire in the log
+brew install go
+go install github.com/echtermeyer/overlord/cmd/overlord@latest
+sudo ~/go/bin/overlord install        # binary, rules, firewall anchor, daemon, notifier
+overlord install-hooks claude         # per user; also codex, cursor, gemini
+sudo overlord doctor                  # says what is left, usually Full Disk Access for eslogger
 ```
+
+Then watch it work:
+
+```sh
+overlord simulate stealer             # a harmless stealer: freezes and asks within a second
+sudo overlord events -f               # live, readable
+sudo overlord report                  # the last 24 hours
+```
+
+## What it does out of the box
+
+- **Denies** agents that pipe downloads into a shell, decode hidden scripts into a shell, switch
+  off protections, or edit their own hooks and guard settings. These rules live inside the hook
+  binary too, so they hold while the daemon is down.
+- **Asks** through the agent's own permission prompt before sudo, credential reads, destructive
+  commands, persistence, or sending data out after reading secrets.
+- **Freezes and asks** when an unknown process reads credentials from two places, shows a password
+  dialog, drives Finder with AppleScript, decodes a bootstrap, stages an archive and connects to a
+  new host, or installs a launch item. Block kills and quarantines; Allow resumes; everything undoes.
+- **Logs** every process, read, connection and decision in a hash-chained log you can ship off the
+  Mac, with a heartbeat so switching Overlord off is itself an alert.
+
+Everything else starts in log-only mode. `policy.yaml` holds one line per rule to change that.
 
 ## Why it exists
 

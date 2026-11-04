@@ -1,11 +1,34 @@
-# Stage per rule. Rules not named here run in default_stage. New rules ship in shadow and move
-# up only through the false-positive gate described in docs/DESIGN.md.
+# Stage per rule. Rules not named here run in default_stage (log only).
+#   enforce: the rule acts on its own (deny, alert, kill only for certain rules)
+#   ask:     freeze the process and ask you, or send the agent's call to its permission prompt
+#   shadow:  log what would have happened
+# `overlord report` shows what each rule did; `overlord replay` tests a recording.
 default_stage: shadow
 stages:
+  # agent: certain rules deny, likely rules go to the agent's own permission prompt
   agent.pipe-to-shell: enforce
   agent.disable-security: enforce
   agent.self-tamper: enforce
+  agent.sudo: ask
+  agent.secret-read: ask
+  agent.secret-then-egress: ask
+  agent.destructive: ask
+  agent.persistence: ask
+  # host: the stealer chain freezes the process and asks; everything else logs or alerts
   host.xprotect: enforce
+  host.stealer-pattern: ask
+  host.secret-then-new-destination: ask
+  host.staging-then-egress: ask
+  host.password-dialog: ask
+  host.finder-scripting: ask
+  host.base64-bootstrap: ask
+  host.persistence-by-untrusted: ask
+  host.remote-thread: ask
+  host.installer-reads-secrets: ask
+  host.hidden-pass-file: enforce
+  host.sudo-by-agent: enforce
+  host.kextload: enforce
+  host.ssh-login: enforce
 allowlists:
   # Process identities (team id, signing id, cdhash or executable path glob) that may install
   # launch items without a question.

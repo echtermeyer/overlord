@@ -84,8 +84,8 @@ func TestReplaySample(t *testing.T) {
 		data := rec["data"].(map[string]any)
 		v := data["verdict"].(map[string]any)
 		if v["rule"] == "host.stealer-pattern" {
-			if actions, _ := v["actions"].([]any); v["stage"] != "shadow" || len(actions) != 0 {
-				t.Errorf("shadow verdict carried actions: %v", v)
+			if actions, _ := v["actions"].([]any); v["stage"] != "ask" || len(actions) != 3 {
+				t.Errorf("ask verdict should carry freeze, ask and block: %v", v)
 			}
 			if data["process"].(map[string]any)["name"] != "updater" {
 				t.Errorf("process: %v", data["process"])

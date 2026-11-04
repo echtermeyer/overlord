@@ -84,7 +84,7 @@ func TestShippedPolicyLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Stage("agent.pipe-to-shell") != Enforce || p.Stage("host.stealer-pattern") != Shadow {
+	if p.Stage("agent.pipe-to-shell") != Enforce || p.Stage("host.stealer-pattern") != Ask || p.Stage("host.agent-runs-new-binary") != Shadow {
 		t.Errorf("policy stages: %+v", p)
 	}
 	shipped(t, fakeContext{table: sensitive(t)}, p)

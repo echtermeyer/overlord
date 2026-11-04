@@ -4,7 +4,7 @@ package overlord
 
 import "embed"
 
-//go:embed rules/*.yaml policy.yaml config.yaml
+//go:embed rules/*.yaml policy.yaml config.yaml packaging/*.plist packaging/pf.anchor packaging/claude-managed-settings.json
 var Files embed.FS
 
 // Version is set at build time: -ldflags "-X github.com/echtermeyer/overlord.Version=v0.1.0".

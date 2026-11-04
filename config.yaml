@@ -41,7 +41,7 @@ sensors:
     restart_after: 2s
   netmon:
     enabled: true
-    interval: 1s
+    interval: 250ms
   santa:
     enabled: false
     listen: 127.0.0.1:8750

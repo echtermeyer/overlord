@@ -30,11 +30,16 @@ import (
 
 const usage = `overlord <command> [flags]
 
+  install | uninstall    put everything in place (root): binary, rules, firewall anchor, launchd jobs
+  doctor                 check the installation and say what to fix
+  report [-since 24h]    what fired, what was asked, what was done
+  events [-n 50] [-f]    readable log lines, -f follows
   daemon                 run the root service (LaunchDaemon)
   hook <agent>           agent hook: claude | cursor | gemini (reads the agent's JSON on stdin)
   notify                 per-user agent that shows asks as dialogs (LaunchAgent)
   install-hooks <agent>  wire the hook into the agent's settings for this user
   status                 what the daemon sees and does
+  record <file.ndjson>   record eslogger output (root) for replay
   replay <file.ndjson>   run recorded eslogger output through the rules, no actions
   simulate stealer       harmless stealer behaviour to test detection
   allow <rule> <kind> <value>   quiet a rule for a team_id | signing_id | cdhash | path
@@ -90,6 +95,32 @@ func run(cfg *config.Config, args []string) error {
 		return nil
 	case "daemon":
 		return runDaemon(cfg)
+	case "install":
+		return runInstall(cfg)
+	case "uninstall":
+		return runUninstall(cfg)
+	case "doctor":
+		return runDoctor(cfg)
+	case "report":
+		fs := flag.NewFlagSet("report", flag.ContinueOnError)
+		since := fs.Duration("since", 24*time.Hour, "period to report")
+		if err := fs.Parse(rest); err != nil {
+			return err
+		}
+		return runReport(cfg, *since)
+	case "events":
+		fs := flag.NewFlagSet("events", flag.ContinueOnError)
+		n := fs.Int("n", 50, "lines")
+		follow := fs.Bool("f", false, "follow")
+		if err := fs.Parse(rest); err != nil {
+			return err
+		}
+		return runEvents(cfg, *n, *follow)
+	case "record":
+		if len(rest) != 1 {
+			return fmt.Errorf("usage: overlord record <file.ndjson>")
+		}
+		return runRecord(cfg, rest[0])
 	case "hook":
 		if len(rest) != 1 {
 			return fmt.Errorf("usage: overlord hook <%s>", strings.Join(hooks.Adapters(), "|"))

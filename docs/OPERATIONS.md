@@ -1,38 +1,42 @@
 # Operations
 
-## Install on one Mac from source
+## Install on one Mac
 
 ```sh
 brew install go
-git clone https://github.com/echtermeyer/overlord && cd overlord
-make test
-make install                       # sudo: binary, rules, policy, pf anchor, LaunchDaemon, LaunchAgent
+go install github.com/echtermeyer/overlord/cmd/overlord@latest
+sudo ~/go/bin/overlord install
 overlord install-hooks claude      # as yourself; also: codex, cursor, gemini
+sudo overlord doctor
 ```
+
+`overlord install` copies the binary to `/Library/Overlord/bin`, writes rules and policy there
+(existing files are kept), loads the pf anchor, and starts the LaunchDaemon and the notify
+LaunchAgent. Run it again after `go install` of a newer version. `sudo overlord uninstall`
+reverses it and keeps `/var/db/overlord`.
 
 Then give `eslogger` Full Disk Access, or the daemon sees no host events:
 
 - with MDM: install `packaging/overlord-fda.mobileconfig`;
-- by hand: System Settings, Privacy & Security, Full Disk Access, add `/usr/bin/eslogger`
-  (press Cmd-Shift-G in the file dialog to type the path).
+- by hand: System Settings, Privacy & Security, Full Disk Access, press +, then Cmd-Shift-G and
+  type `/usr/bin/eslogger`.
 
-Check:
-
-```sh
-sudo overlord status               # eslogger.alive must be true, lines must grow
-overlord simulate stealer          # should log host.stealer-pattern within a second
-sudo tail -f /var/db/overlord/log/overlord.ndjson | grep '"verdict"'
-```
+`sudo overlord doctor` checks all of it: daemon, eslogger, notifier, hooks, firewall, sink,
+classifier.
 
 Central rollout instead of per-user hooks: `packaging/claude-managed-settings.json` goes to
 `/Library/Application Support/ClaudeCode/managed-settings.json` (its `allowManagedHooksOnly`
 blocks every user and project hook, so developers cannot remove it), and
 `packaging/cursor-hooks.json` to `/Library/Application Support/Cursor/hooks.json`. Both are
-MDM-friendly files.
+MDM-friendly files. A signed `.pkg` for MDM: `packaging/build-pkg.sh` (needs a Developer ID).
 
-Codex and Gemini CLI have no "ask": a rule in stage `ask` denies there, with the reason. Codex
-needs the hook trusted once with `/hooks` inside Codex. Cursor's `beforeReadFile` knows only
-allow and deny, so an ask on a file read denies.
+## Seeing what it does
+
+```sh
+sudo overlord events -f            # live: rule hits, actions, asks, sensor state
+sudo overlord report -since 7d     # what fired at which stage, asks, actions, errors
+sudo overlord status               # raw JSON
+```
 
 ## Files
 
@@ -50,17 +54,18 @@ allow and deny, so an ask on a file read denies.
 | `/var/db/overlord/known-binaries`, `known-destinations` | what this Mac has seen before |
 | `/var/run/overlord.sock` | the only inbound channel |
 
-## Moving a rule up a stage
+## Tuning rules
 
-Every rule starts in `shadow`. The log shows what it would have done. The gate:
+`policy.yaml` names each rule's stage. The shipped policy freezes and asks on the stealer chain
+and sends the likely agent rules to the agent's prompt; the rest only log. To promote or demote a
+rule, or to test a new one against your own work:
 
-1. Record benign days: `sudo eslogger exec fork exit open create rename unlink btm_launch_item_add sudo > day.ndjson`
-   while you work as usual (installs, builds, tests, git). Keep these private; they contain paths.
-2. `overlord replay day.ndjson` for every recorded day. A rule may go to `ask` only with zero
-   hits across all of them.
-3. In `ask`, every hit freezes or asks. When every answered ask in real use was Block, the rule
-   may go to `enforce` in `policy.yaml`.
-4. Edit `/Library/Overlord/policy.yaml` and `sudo launchctl kickstart -k system/com.overlord.daemon`.
+1. `sudo overlord record day.ndjson` while you work as usual (installs, builds, tests, git).
+   Keep the file private; it contains paths.
+2. `overlord replay day.ndjson` shows which rules would have fired and how often.
+3. Edit `/Library/Overlord/policy.yaml` and `sudo launchctl kickstart -k system/com.overlord.daemon`.
+
+A rule that fires on ordinary work is a bug: open an issue with the replay line.
 
 ## Answering asks
 
