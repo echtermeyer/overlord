@@ -1,0 +1,119 @@
+# Rules on coding-agent tool calls (synchronous, through the agents' hooks). Stages come from
+# policy.yaml; the "certain" rules here are also embedded in the hook binary so they hold while
+# the daemon is down.
+- id: agent.pipe-to-shell
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" &&
+    (call.command.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b") ||
+     call.command.matches("(ba|z)?sh\\s+(-c\\s+)?[\"']?\\s*\\$\\((curl|wget)\\b") ||
+     call.command.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(python3?|perl|ruby|node)\\b"))
+  confidence: certain
+  actions: [deny, alert]
+  explain: "The agent wants to download a script and run it without anyone reading it."
+
+- id: agent.disable-security
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" &&
+    (call.command.matches("\\b(csrutil|spctl\\s+--(master-disable|global-disable))\\b") ||
+     call.command.matches("defaults\\s+write\\s+com\\.apple\\.LaunchServices\\s+LSQuarantine") ||
+     call.command.matches("\\b(killall|pkill|kill)\\b.*\\boverlord") ||
+     call.command.matches("launchctl\\s+(unload|bootout|disable|remove)\\b.*\\b(overlord|santa)") ||
+     call.command.matches("\\bsantactl\\b") ||
+     call.command.matches("tccutil\\s+reset"))
+  confidence: certain
+  actions: [deny, alert]
+  explain: "The agent wants to switch off a protection on this Mac."
+
+- id: agent.self-tamper
+  threat: T2
+  on: tool_call
+  when: >
+    (call.paths.exists(p, p.matchesAny([
+        "~/.claude/settings*.json", "**/.claude/settings*.json", "~/.claude/hooks/**",
+        "~/.codex/config.toml", "~/.cursor/hooks.json", "**/.cursor/hooks.json",
+        "~/.gemini/settings.json", "**/.gemini/settings.json",
+        "/Library/Overlord/**", "/var/db/overlord/**", "/Library/LaunchDaemons/com.overlord.*"]))) ||
+    (call.tool == "Bash" &&
+     call.command.matches("(\\.claude/settings|\\.claude/hooks|\\.cursor/hooks\\.json|\\.codex/config\\.toml|\\.gemini/settings\\.json|/Library/Overlord|/var/db/overlord|com\\.overlord\\.)") &&
+     !call.command.matches("^\\s*(cat|less|head|tail|grep|ls|jq|bat)\\b"))
+  confidence: certain
+  actions: [deny, alert]
+  explain: "The agent wants to change the hooks or guard configuration that watches it."
+
+- id: agent.sudo
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" && call.command.matches("(^|[;&|]\\s*|\\s)sudo\\s")
+  confidence: likely
+  actions: [ask]
+  explain: "The agent wants root: {{.call.command}}"
+
+- id: agent.secret-read
+  threat: T2
+  on: tool_call
+  when: >
+    call.paths.exists(p, p.category() in ["ssh", "keychain", "cloud", "wallet", "browser", "password_manager", "gpg", "registry", "agent"]) ||
+    (call.tool == "Bash" &&
+     call.command.matches("(\\.ssh/id_[a-z0-9_]+([^.\\w]|$)|\\.aws/credentials|Library/Keychains|\\.gnupg/|\\.npmrc|\\.pypirc|\\.netrc|\\.config/gcloud|\\.kube/config|\\.claude/\\.credentials|Login Data|Cookies)") &&
+     !call.command.matches("^\\s*(ls|stat|test|\\[)\\b"))
+  confidence: likely
+  actions: [ask]
+  explain: "The agent wants to read a credential file: {{.call.command}}{{range .call.paths}} {{.}}{{end}}"
+
+- id: agent.secret-then-egress
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" &&
+    call.command.matches("\\b(curl|wget|nc|ncat|scp|sftp|rsync|aws\\s+s3|gsutil|gh\\s+gist|ngrok)\\b") &&
+    !call.command.matches("(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::1\\])") &&
+    session.readCategories("10m").size() > 0
+  confidence: likely
+  actions: [ask]
+  explain: "This session read {{.session.id}}'s secret files and now wants to send data out: {{.call.command}}"
+
+- id: agent.destructive
+  threat: T2
+  on: tool_call
+  when: >
+    call.tool == "Bash" &&
+    (call.command.matches("\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)[a-zA-Z]*\\s+(/|~|\\$HOME|\\.\\.|\\*)") ||
+     call.command.matches("\\brm\\s+-[a-zA-Z]*r[a-zA-Z]*\\s+(/[A-Za-z]|~/[A-Za-z])") ||
+     call.command.matches("git\\s+push\\b.*(--force\\b|-f\\b|--force-with-lease)") ||
+     call.command.matches("git\\s+(reset\\s+--hard|clean\\s+-[a-z]*f[a-z]*d|checkout\\s+--\\s+\\.|branch\\s+-D)") ||
+     call.command.matches("\\b(mkfs|diskutil\\s+(erase|reformat|partition)|dd\\s+.*of=/dev/)") ||
+     call.command.matches("\\b(DROP|TRUNCATE)\\s+(TABLE|DATABASE|SCHEMA)\\b") ||
+     call.command.matches("\\bchmod\\s+-R\\s+[0-7]*7[0-7]*\\s+/") ||
+     call.command.matches(">\\s*/dev/(sd|disk|rdisk)"))
+  confidence: likely
+  actions: [ask]
+  explain: "The agent wants to run something that cannot be undone: {{.call.command}}"
+
+- id: agent.persistence
+  threat: T2
+  on: tool_call
+  when: >
+    (call.tool == "Bash" &&
+     call.command.matches("(LaunchAgents|LaunchDaemons|launchctl\\s+(load|bootstrap|enable)|crontab\\s+-|/etc/periodic|\\.(zshrc|zprofile|zshenv|bashrc|bash_profile|profile)\\b)") &&
+     !call.command.matches("^\\s*(cat|less|head|tail|grep|ls|launchctl\\s+(list|print))\\b")) ||
+    call.paths.exists(p, p.matchesAny(["~/Library/LaunchAgents/**", "/Library/LaunchAgents/**", "/Library/LaunchDaemons/**",
+                                       "~/.zshrc", "~/.zprofile", "~/.zshenv", "~/.bashrc", "~/.bash_profile", "~/.profile"]))
+  confidence: likely
+  actions: [ask]
+  explain: "The agent wants to install something that runs again after a restart or in every shell."
+
+- id: agent.outside-project
+  threat: T2
+  on: tool_call
+  when: >
+    call.project != "" &&
+    call.paths.exists(p, p.startsWith("/") && !p.startsWith(call.project + "/") && !p.startsWith("/tmp/") && !p.startsWith("/private/tmp/") &&
+                         !p.matchesAny(["~/.claude/**", "~/.codex/**", "~/.cursor/**", "~/.gemini/**"]))
+  confidence: possible
+  actions: [alert]
+  explain: "The agent touches files outside its project: {{range .call.paths}}{{.}} {{end}}"

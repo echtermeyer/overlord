@@ -1,0 +1,15 @@
+# Stage per rule. Rules not named here run in default_stage. New rules ship in shadow and move
+# up only through the false-positive gate described in docs/DESIGN.md.
+default_stage: shadow
+stages:
+  agent.pipe-to-shell: enforce
+  agent.disable-security: enforce
+  agent.self-tamper: enforce
+  host.xprotect: enforce
+allowlists:
+  # Process identities (team id, signing id, cdhash or executable path glob) that may install
+  # launch items without a question.
+  installers:
+    - "/usr/sbin/installer"
+    - "/System/Library/**"
+    - "/usr/libexec/**"

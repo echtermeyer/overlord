@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key><string>com.apple.TCC.configuration-profile-policy</string>
+      <key>PayloadIdentifier</key><string>com.overlord.tcc</string>
+      <key>PayloadUUID</key><string>5D8E7C3A-0C8F-4C1B-9B6E-OVERLORD0001</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadDisplayName</key><string>Overlord: Full Disk Access for eslogger</string>
+      <key>Services</key>
+      <dict>
+        <key>SystemPolicyAllFiles</key>
+        <array>
+          <dict>
+            <key>Identifier</key><string>com.apple.eslogger</string>
+            <key>IdentifierType</key><string>bundleID</string>
+            <key>CodeRequirement</key><string>identifier "com.apple.eslogger" and anchor apple</string>
+            <key>Allowed</key><true/>
+            <key>Comment</key><string>eslogger streams Endpoint Security events to the Overlord daemon</string>
+          </dict>
+        </array>
+      </dict>
+    </dict>
+  </array>
+  <key>PayloadDisplayName</key><string>Overlord</string>
+  <key>PayloadIdentifier</key><string>com.overlord.profile</string>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadUUID</key><string>5D8E7C3A-0C8F-4C1B-9B6E-OVERLORD0000</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadScope</key><string>System</string>
+</dict>
+</plist>

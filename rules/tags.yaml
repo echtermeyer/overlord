@@ -1,0 +1,61 @@
+# Executable path globs that tag a process; tags are inherited by every descendant.
+# "installer:*" tags let host rules allow package-manager post-install activity in the right place.
+terminal:
+  - "/System/Applications/Utilities/Terminal.app/**"
+  - "/Applications/iTerm.app/**"
+  - "/Applications/Ghostty.app/**"
+  - "/Applications/kitty.app/**"
+  - "/Applications/Warp.app/**"
+  - "/Applications/Alacritty.app/**"
+  - "/Applications/WezTerm.app/**"
+editor:
+  - "/Applications/Visual Studio Code.app/**"
+  - "/Applications/Cursor.app/**"
+  - "/Applications/Zed.app/**"
+  - "/Applications/Xcode.app/**"
+  - "/Users/*/Applications/JetBrains Toolbox/**"
+  - "/Applications/IntelliJ IDEA.app/**"
+  - "/Applications/PyCharm.app/**"
+installer:brew:
+  - "/opt/homebrew/bin/brew"
+  - "/opt/homebrew/Library/Homebrew/**"
+  - "/usr/local/bin/brew"
+  - "/usr/local/Homebrew/**"
+installer:npm:
+  - "**/bin/npm"
+  - "**/bin/npx"
+  - "**/bin/pnpm"
+  - "**/bin/yarn"
+  - "**/bin/bun"
+installer:pip:
+  - "**/bin/pip"
+  - "**/bin/pip3"
+  - "**/bin/uv"
+  - "**/bin/poetry"
+  - "**/bin/pipx"
+installer:cargo:
+  - "**/.cargo/bin/cargo"
+installer:go:
+  - "**/go/bin/go"
+  - "/opt/homebrew/Cellar/go/*/libexec/bin/go"
+installer:mas:
+  - "/System/Library/PrivateFrameworks/**/installd"
+  - "/usr/sbin/installer"
+  - "/usr/libexec/**/softwareupdated"
+agent:claude:
+  - "**/.local/bin/claude"
+  - "**/.claude/local/**/claude"
+  - "**/bin/claude"
+  - "**/node_modules/@anthropic-ai/claude-code/**"
+agent:codex:
+  - "**/bin/codex"
+  - "**/node_modules/@openai/codex/**"
+agent:gemini:
+  - "**/bin/gemini"
+  - "**/node_modules/@google/gemini-cli/**"
+agent:cursor:
+  - "**/bin/cursor-agent"
+  - "/Applications/Cursor.app/Contents/Resources/app/**"
+agent:copilot:
+  - "**/bin/copilot"
+  - "**/node_modules/@github/copilot/**"

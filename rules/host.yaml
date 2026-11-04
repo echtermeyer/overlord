@@ -1,0 +1,113 @@
+# Rules on host events (eslogger, network, Santa). Asynchronous: the engine can freeze a
+# process after the fact, never before it runs. Stages come from policy.yaml.
+- id: host.stealer-pattern
+  threat: T1
+  on: file_open
+  when: >
+    !process.trusted && process.tag("installer") == "" &&
+    process.readCategories("60s").filter(c, !(c in ["env", "agent", "overlord"])).size() >= 2
+  confidence: likely
+  actions: [freeze, ask, block_new_destinations]
+  escalate_when: >
+    process.outbound("120s").exists(d, !d.seenBefore)
+  escalate_actions: [kill, quarantine, alert]
+  explain: "{{.process.name}} ({{.process.path}}) read {{.process.key}}'s secrets from several places within a minute."
+
+- id: host.secret-then-new-destination
+  threat: T1
+  on: net_connect
+  when: >
+    !process.trusted && !dest.seenBefore &&
+    !dest.address.matches("^(127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|::1$|fe80:|fd)") &&
+    process.readCategories("120s").filter(c, !(c in ["env", "agent", "overlord"])).size() >= 1
+  confidence: likely
+  actions: [freeze, ask, block_new_destinations]
+  explain: "{{.process.name}} read credentials and now connects to {{.dest.address}}, a host this Mac has never talked to."
+
+- id: host.password-dialog
+  threat: T1
+  on: exec
+  when: >
+    target.name == "osascript" && target.cmdline.contains("hidden answer") && !process.trusted
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "{{.process.name}} opens a dialog that asks for a password. macOS itself never does this through osascript."
+
+- id: host.pipe-to-shell
+  threat: T1
+  on: exec
+  when: >
+    target.cmdline.matches("(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b") &&
+    target.tag("installer") == ""
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "A shell runs a script straight from the network: {{.target.cmdline}}"
+
+- id: host.persistence-by-untrusted
+  threat: T1
+  on: [launch_item_add, file_create, file_rename]
+  when: >
+    (event.kind == "launch_item_add" ||
+     event.path.matchesAny(["~/Library/LaunchAgents/*", "/Library/LaunchAgents/*", "/Library/LaunchDaemons/*"]) ||
+     event.destPath.matchesAny(["~/Library/LaunchAgents/*", "/Library/LaunchAgents/*", "/Library/LaunchDaemons/*"])) &&
+    !process.trusted && process.tag("installer") == "" && !process.inAllowlist("installers")
+  confidence: likely
+  actions: [ask, quarantine_if_blocked, alert]
+  explain: "{{.process.name}} installs a launch item: {{.event.path}}{{.event.destPath}}"
+
+- id: host.remote-thread
+  threat: T1
+  on: remote_thread_create
+  when: "!process.trusted"
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "{{.process.name}} injects a thread into {{.target.name}}."
+
+- id: host.xprotect
+  threat: T1
+  on: xp_malware_detected
+  confidence: certain
+  actions: [alert]
+  explain: "XProtect found {{index .event.detail \"malware\"}} at {{.event.path}}."
+
+- id: host.sudo-by-agent
+  threat: T2
+  on: sudo
+  when: process.tag("agent") != ""
+  confidence: likely
+  actions: [alert]
+  explain: "An agent session ran sudo: {{index .event.detail \"command\"}}"
+
+- id: host.agent-runs-new-binary
+  threat: T3
+  on: exec
+  when: >
+    process.tag("agent") != "" && target.firstSeen && !target.trusted
+  confidence: possible
+  actions: [alert]
+  explain: "An agent session runs a binary this Mac has never seen: {{.target.path}}"
+
+- id: host.installer-reads-secrets
+  threat: T3
+  on: file_open
+  when: >
+    process.tag("installer") != "" &&
+    process.readCategories("60s").filter(c, !(c in ["env", "registry", "overlord"])).size() >= 1
+  confidence: likely
+  actions: [freeze, ask]
+  explain: "A package install step ({{.process.name}}, {{.process.tag \"installer\"}}) reads credentials."
+
+- id: host.kextload
+  threat: T1
+  on: kextload
+  confidence: possible
+  actions: [alert]
+  explain: "A kernel extension loads: {{index .event.detail \"identifier\"}}"
+
+- id: host.ssh-login
+  threat: T1
+  on: ssh_login
+  when: event.detail["success"] == "true"
+  confidence: possible
+  actions: [alert]
+  explain: "SSH login by {{index .event.detail \"user\"}} from {{index .event.detail \"source\"}}."

@@ -1,4 +1,6 @@
 .DS_Store
 /dist/
 /overlord
+/overlord-sink
 *.log
+/sink-data/

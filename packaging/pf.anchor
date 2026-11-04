@@ -1,0 +1,4 @@
+# Loaded into anchor "overlord" from /etc/pf.conf. The daemon adds and removes addresses in the
+# "blocked" table; nothing else is filtered.
+table <blocked> persist
+block drop out quick to <blocked>

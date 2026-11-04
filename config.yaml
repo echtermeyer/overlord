@@ -1,0 +1,74 @@
+# Every tunable and its default. /Library/Overlord/config.yaml overrides keys; unknown keys
+# stop the daemon. Secrets never go here: tokens are files named below.
+data_dir: /var/db/overlord
+socket: /var/run/overlord.sock
+rules:
+  dir: /Library/Overlord/rules
+  policy: /Library/Overlord/policy.yaml
+  repeat_after: 5m
+graph:
+  retention: 2h
+  max_per_process: 200
+  trusted_teams:          # verify with: codesign -dv /Applications/X.app 2>&1 | grep TeamIdentifier
+    - EQHXZ8M8AV          # Google
+    - UBF8T346G9          # Microsoft
+    - 2BUA7Q4SWZ          # JetBrains
+    - 9BNSXJN65R          # Docker
+    - 43AQ936H96          # Mozilla
+    - BQR82RBBHL          # Slack
+    - Q6L479JX3F          # Anthropic
+sensors:
+  eslogger:
+    enabled: true
+    binary: /usr/bin/eslogger
+    events:
+      - exec
+      - fork
+      - exit
+      - open
+      - create
+      - rename
+      - unlink
+      - btm_launch_item_add
+      - btm_launch_item_remove
+      - sudo
+      - tcc_modify
+      - xp_malware_detected
+      - openssh_login
+      - remote_thread_create
+      - mount
+      - kextload
+    restart_after: 2s
+  netmon:
+    enabled: true
+    interval: 1s
+  santa:
+    enabled: false
+    listen: 127.0.0.1:8750
+    machine_id_file: /Library/Overlord/santa-machine-id
+ask:
+  timeout: 60s
+  freeze_timeout: 10m
+  frozen_on_timeout: keep   # keep | kill | resume
+hook:
+  daemon_timeout: 1500ms
+notify:
+  webhook_url: ""
+  webhook_token_file: ""
+logs:
+  dir: /var/db/overlord/log
+  max_size_mb: 100
+  keep_files: 10
+  redact: true
+  heartbeat: 60s
+  ship:
+    url: ""
+    token_file: /Library/Overlord/sink.token
+    batch: 500
+    interval: 10s
+llm:
+  provider: none            # none | ollama | anthropic
+  model: ""
+  ollama_url: http://127.0.0.1:11434
+  anthropic_key_file: /Library/Overlord/anthropic.key
+  timeout: 2s

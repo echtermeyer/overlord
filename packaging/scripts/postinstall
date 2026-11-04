@@ -1,0 +1,29 @@
+#!/bin/sh
+# Runs as root from the .pkg and from `make install`. Idempotent.
+set -eu
+mkdir -p /Library/Overlord/rules /var/db/overlord
+chown -R root:wheel /Library/Overlord
+chmod 755 /Library/Overlord /Library/Overlord/bin /Library/Overlord/bin/overlord
+chmod 700 /var/db/overlord
+chmod 644 /Library/Overlord/policy.yaml /Library/Overlord/rules/*.yaml
+[ -f /Library/Overlord/config.yaml ] || printf '# overrides for the embedded defaults, see `overlord` docs\n' > /Library/Overlord/config.yaml
+chmod 644 /Library/Overlord/config.yaml
+
+# pf anchor: referenced from pf.conf once, loaded now.
+cp /Library/Overlord/pf.anchor /etc/pf.anchors/overlord
+if ! grep -q '^anchor "overlord"' /etc/pf.conf; then
+  printf '\nanchor "overlord"\nload anchor "overlord" from "/etc/pf.anchors/overlord"\n' >> /etc/pf.conf
+fi
+pfctl -f /etc/pf.conf 2>/dev/null || true
+pfctl -e 2>/dev/null || true
+
+install -m 644 -o root -g wheel /Library/Overlord/com.overlord.daemon.plist /Library/LaunchDaemons/com.overlord.daemon.plist
+install -m 644 -o root -g wheel /Library/Overlord/com.overlord.notify.plist /Library/LaunchAgents/com.overlord.notify.plist
+launchctl bootout system/com.overlord.daemon 2>/dev/null || true
+launchctl bootstrap system /Library/LaunchDaemons/com.overlord.daemon.plist
+console_uid=$(stat -f %u /dev/console)
+if [ "$console_uid" != "0" ]; then
+  launchctl bootout "gui/$console_uid/com.overlord.notify" 2>/dev/null || true
+  launchctl bootstrap "gui/$console_uid" /Library/LaunchAgents/com.overlord.notify.plist 2>/dev/null || true
+fi
+echo "overlord installed; eslogger needs Full Disk Access (packaging/overlord-fda.mobileconfig or System Settings)"

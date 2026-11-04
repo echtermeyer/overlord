@@ -1,6 +1,7 @@
 # Overlord design
 
-Status: design, checked against macOS 15.7 on 2026-11-04. Nothing runs yet.
+Status: implemented as designed below, except where a section says otherwise. Checked against
+macOS 15.7 on 2026-11-04. See docs/OPERATIONS.md to run it.
 
 ## 1. Threats it is built for
 
@@ -19,13 +20,13 @@ Out of scope: wrong code, wrong logic, an attacker who already has root, kernel 
    streams the same notify events as JSON and needs only root plus Full Disk Access, which an MDM
    profile grants (`SystemPolicyAllFiles`). It carries no auth events, so it cannot block.
 2. **Synchronous blocking exists at three points without special entitlements:** the agents' hook
-   interfaces (Claude Code `PreToolUse` with `permissionDecision: deny`, Codex, Cursor, Gemini CLI,
-   Copilot CLI), Santa's blocklist (applies even in monitor mode; Overlord serves as its sync server),
+   interfaces (Claude Code `PreToolUse` with `permissionDecision: deny`, Cursor's `hooks.json`,
+   Gemini CLI's `BeforeTool`; Codex and Copilot CLI once their hook interfaces are verified), Santa's blocklist (applies even in monitor mode; Overlord serves as its sync server),
    and the `pf` firewall.
 3. **Per-process network attribution needs a Network Extension content filter.** That entitlement is
    routine for a paid developer account but needs Developer ID signing and notarization. It is a later
-   phase. Until then, network visibility is `pf` logging plus socket polling: coarse, enough for
-   "new process talks to a never-seen host".
+   phase. Until then, network visibility is socket polling with `lsof` once a second: coarse,
+   enough for "new process talks to a never-seen host".
 4. **Developer machines must stay usable.** Anything automatic must be reversible or have
    near-certain confidence. A guard that blocks `npm install` once is uninstalled the same day.
 
@@ -63,7 +64,7 @@ One binary, `overlord`, with subcommands:
 | `eslogger` child process | `exec fork exit open create rename unlink link setextattr mount kextload btm_launch_item_add btm_launch_item_remove sudo su tcc_modify profile_add openssh_login remote_thread_create proc_suspend_resume xp_malware_detected` | no | 0 |
 | Agent hooks | tool calls with session id, cwd, project, agent pid, before and after execution | yes, synchronous | 1 |
 | Santa (optional) | new binary executions with hash, signing id, team id; blocklist by hash, signing id or team id | yes, asynchronous (next execution) | 2 |
-| `pf` log plus socket polling | outbound flows by destination; process by polling `lsof -i` each second | destination block via `pf` anchor | 2 |
+| socket polling (`lsof -i` each second) | outbound connections per process | destination block via `pf` anchor | 2 |
 | Network Extension (Swift) | flows with process audit token | yes, synchronous | 3 |
 
 `eslogger` output is parsed as NDJSON on a pipe. If it exits it is restarted and the gap is logged as a
@@ -80,8 +81,9 @@ merges two processes). A node holds:
 - tags, inherited by every descendant: `agent:<session>`, `project:<path>`, `installer:<brew|npm|pip|cargo>`, `terminal`
 - counters with timestamps: sensitive reads by category, outbound destinations, persistence writes, children
 
-The graph lives in memory with a ring of the last N hours written to SQLite in `/var/db/overlord/` for
-investigation and replay. The hook reports the agent's pid and session id, which is what links agent
+The graph lives in memory; exited processes are evicted after the retention window. What this
+Mac has seen before (binaries by cdhash, destinations) persists in append-only files under
+`/var/db/overlord/`, and the log holds every verdict with its process snapshot for investigation. The hook reports the agent's pid and session id, which is what links agent
 intent to host events: a `curl` whose ancestor is a tagged agent process is the agent's `curl`.
 
 Sensitive paths are a table, not code (`rules/sensitive_paths.yaml`), with a category per row:
@@ -246,6 +248,9 @@ built in GitHub Actions with provenance, and releases are signed and notarized.
 
 ### 3.10 Testing and the false-positive gate
 
+- Asks for agent tool calls go back to the agent as `ask`, so the agent's own permission prompt
+  shows the reason; the dialog is for host events. `PostToolUse` tells Overlord the person let
+  it run, which becomes the label.
 - `overlord replay` runs recorded `eslogger` NDJSON through the engine. Two corpora: benign developer
   days (brew upgrade, npm and pip installs, Xcode builds, Docker, pytest, git) recorded on our own
   machines and kept private, and attack days from Atomic Red Team's macOS tests plus
