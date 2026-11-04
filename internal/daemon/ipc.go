@@ -155,6 +155,8 @@ func (d *Daemon) pushAsks(ctx context.Context, c *ipc.Conn) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-c.Done():
+			return
 		case a := <-asks:
 			raw, _ := json.Marshal(a)
 			if err := c.Send(ipc.Response{ID: a.ID, OK: true, Payload: raw}); err != nil {

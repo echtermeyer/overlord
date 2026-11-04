@@ -192,6 +192,38 @@ func TestIPCStatusAndPermissions(t *testing.T) {
 	}
 }
 
+func TestSubscriberGoneIsForgotten(t *testing.T) {
+	d := testDaemon(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = d.serveIPC(ctx) }()
+	subCtx, stop := context.WithCancel(context.Background())
+	client := ipc.Client{Path: d.cfg.Socket, Timeout: 2 * time.Second}
+	go func() {
+		for i := 0; i < 50; i++ {
+			if err := client.Subscribe(subCtx, "subscribe", nil, func(ipc.Response) (any, error) { return nil, nil }); err == nil {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+	waitFor(t, func() bool { return d.broker.Subscribers() == 1 })
+	stop()
+	waitFor(t, func() bool { return d.broker.Subscribers() == 0 })
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition not met")
+}
+
 func TestBrokerAnswerAndTimeout(t *testing.T) {
 	b := NewBroker(50 * time.Millisecond)
 	if _, answered := b.Ask(context.Background(), notifyAsk("a")); answered {

@@ -41,7 +41,11 @@ type Conn struct {
 	conn net.Conn
 	w    *bufio.Writer
 	mu   sync.Mutex
+	done chan struct{}
 }
+
+// Done is closed when the peer hangs up, so a subscription can stop pushing.
+func (c *Conn) Done() <-chan struct{} { return c.done }
 
 func (c *Conn) Send(resp Response) error {
 	c.mu.Lock()
@@ -101,7 +105,8 @@ func (s *Server) serve(ctx context.Context, raw net.Conn) {
 	if err != nil {
 		return
 	}
-	c := &Conn{Peer: peer, conn: raw, w: bufio.NewWriter(raw)}
+	c := &Conn{Peer: peer, conn: raw, w: bufio.NewWriter(raw), done: make(chan struct{})}
+	defer close(c.done)
 	scanner := bufio.NewScanner(raw)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
